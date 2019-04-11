@@ -49,7 +49,9 @@ def create_file(photos_path, output_path, min_size=300):
             with Image.open(image_path) as i:
                 w, h = i.size
 
-            print("\tImage [{}/{}]".format(ic, len(images_names)))
+            print("\tImage [{}/{}], Class [{}/{}]".format(ic,
+                                                          len(images_names),
+                                                          ccount, len(classes)))
             if w < min_size or h < min_size:
                 print("\t\tDimensions ({}x{}) shorter than min_size {} skipping ...".format(w, h, min_size))
                 continue
