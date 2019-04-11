@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Face Taggin Tool</title>
+        <style>
+
+        body {
+
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+
+        }
+
+        button {
+            display: block;
+            margin-right: auto;
+            margin-left: auto;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            width: 200px;
+            height: 100px;
+            border-radius: 12px;
+            box-shadow: none;
+            border: 0;
+        }
+
+        .no_btn {
+
+            background: #E74C3C;
+
+        }
+
+        .yes_btn {
+
+            background: #1e90ff;
+
+        }
+
+        img {
+            display: block;
+            margin-right: auto;
+            margin-left: auto;
+            margin-top: 10px;
+            width: 50%;
+            height: 50%;
+        }
+
+        .container {
+
+            vertical-align:center;
+            text-align: center;
+            width: 100%;
+            padding: auto;
+
+        }
+
+        </style>
+        <script>
+            var SERVER = "http://localhost:5000";
+            var last_resp = {};
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    var resp = JSON.parse(xhttp.responseText);
+                    last_resp = resp;
+                    var img = document.getElementById("image")
+                    img.src = resp.image_url;
+                    img.style.width = "480px";
+                    img.style.height = "480px";
+
+                }
+            };
+            xhttp.open("GET", SERVER+"/get_photo", true);
+            xhttp.send();
+
+            function request(yes){
+
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.readyState == 4 && this.status == 200) {
+                        location.reload();
+                    }
+                };
+                xhttp.open("GET",
+                    SERVER+"/save?class="+last_resp['class']+"&image_name="+last_resp['image_name']+"&use_photo="+yes,true);
+                xhttp.send();
+
+
+            }
+        </script>
+    </head>
+    <body>
+        <div class='container'>
+            <button onclick="request(1)" class='yes_btn'>Yes! </button>
+                <img id="image" src="loading.gif" />
+            <button onclick="request(0)" class='no_btn'>No!</button>
+        </div>
+    </body>
+
+</html>
