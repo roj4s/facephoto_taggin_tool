@@ -3,9 +3,9 @@ Given a path with folders containing images of people faces, this script
 creates a pandas HDF file that can be inputed to another tool that permits
 selecting proper photos for face recognition systems validation.
 
-@author Luis Miguel Rojas Aguilera rojas@icomp.ufam.edu.br
-
 '''
+
+__author__ = "Luis Miguel Rojas Aguilera"
 
 
 import argparse
@@ -25,8 +25,11 @@ def create_file(photos_path, output_path, min_size=300):
     classes = os.listdir(photos_path)
     ccount = 1
     tia = 0
-    cols = ['class', 'image_name', 'use_photo', 'width', 'height']
+    cols = ['class', 'image_name', 'use_photo', 'width', 'height', 'annotator', 'instant']
     for _class in classes:
+        if len(_class) >= 12:
+            print("Class name has more than 12 chars, skipping ...")
+            continue
         print("Processing class {}. [{}/{}]".format(_class, ccount, len(classes)))
         class_path = os.path.join(photos_path, _class)
         data = []
@@ -34,11 +37,15 @@ def create_file(photos_path, output_path, min_size=300):
         images_names = os.listdir(class_path)
         tiac = 0
         for image_name in images_names:
+
+            if len(image_name) >= 12:
+                print("Image name has more than 12 chars, skipping ...")
+                continue
+
             ic += 1
             if previous_dataframe is not None:
                 if not previous_dataframe[(previous_dataframe['class'] == _class)
-                                      & (previous_dataframe['image_name'] ==
-                                         image_name)].empty:
+                                      & (previous_dataframe['image_name'] == image_name)].empty:
                     tia += 1
                     tiac += 1
                     print("\tData for image already in dataset, skipping ...")
@@ -56,7 +63,7 @@ def create_file(photos_path, output_path, min_size=300):
                 print("\t\tDimensions ({}x{}) shorter than min_size {} skipping ...".format(w, h, min_size))
                 continue
 
-            data.append([_class, image_name, -1, w, h])
+            data.append([_class, image_name, -1, w, h, "none", 0])
             tia += 1
             tiac += 1
             print("\t\tAdded. Per class: {}/{}, Total: {}".format(tiac,

@@ -1,9 +1,13 @@
 import argparse
+import os
+import random
 from queue import Queue
 import pandas as pd
 #from threading import Thread, Event
 from tornado.web import Application, RequestHandler
 from tornado.ioloop import IOLoop
+import time
+from metrics import annotations_counts
 
 TAG = "[TagginToolWebServer]"
 
@@ -50,27 +54,36 @@ def all_classes_has_min_items_tagged(df, count):
     tagged_by_class = df[df.use_photo != -1].groupby('class')
     return tagged_by_class.filter(lambda x: len(x) < count).empty
 
+
 class ProvidePhotoHandler(RequestHandler):
 
     def check_origin(self, origin):
         return True
 
-    def initialize(self, dataset_addr, images_url, max_count=30):
+    def initialize(self, addrss, images_url, max_count=30):
         self.images_url = images_url
-        self.dataset_addr = dataset_addr
         self.max_count = max_count
+        self.addrss = addrss
 
     def get(self):
         _class = self.get_body_argument("class", None)
 
         print("Finding new photo ... ")
+
+        self.dataset_addr = random.choice(self.addrss)
         df = pd.read_hdf(self.dataset_addr)
+        while all_images_tagged(df):
+            print("Selected dataset {} has all images tagged already".format(self.dataset_addr))
+            self.dataset_addr = random.choice(self.addrss)
+            df = pd.read_hdf(self.dataset_addr)
+
         max_count = -1 if all_classes_has_min_items_tagged(df, self.max_count) else self.max_count
         if all_images_tagged(df):
             print("All images are already tagged ...")
             self.write({'all_images_tagged': 1})
         else:
             next_class, next_image = resolve_image_name(df, max_count, _class)
+            metrs = annotations_counts(df)
             del df
             img_addr = "{}/{}/{}".format(self.images_url,
                                                         next_class,
@@ -83,7 +96,9 @@ class ProvidePhotoHandler(RequestHandler):
             '''
             self.set_header('Access-Control-Allow-Origin', "*")
             self.write({"all_images_tagged": 0, "image_url": img_addr,
-                        "class": next_class, "image_name": next_image})
+                        "class": next_class, "image_name": next_image,
+                        'dataset_status': metrs, 'dataset_addr':
+                        self.dataset_addr})
 
 
 class EnqueueAnnotationHandler(RequestHandler):
@@ -96,17 +111,19 @@ class EnqueueAnnotationHandler(RequestHandler):
         self.queue = queue
     '''
 
-    def initialize(self, dataset_addr):
-        self.dataset_addr = dataset_addr
-
     def get(self):
+        instant = time.time()
         _class = self.get_argument("class")
         image_name = self.get_argument("image_name")
         use_photo = self.get_argument("use_photo")
-        d = pd.read_hdf(self.dataset_addr)
-        print("Annotating Class: {}, Image name: {}, Use photo: {}".format(_class, image_name, use_photo))
+        dataset_addr = self.get_argument('dataset_addr')
+        d = pd.read_hdf(dataset_addr)
+        annotator = str(self.request.remote_ip)
+        print("Annotating Class: {}, Image name: {}, Use photo: {}, From: {}, On: {} ".format(_class, image_name, use_photo, annotator, dataset_addr))
         d.loc[(d['class'] == _class) & (d['image_name'] == image_name), 'use_photo'] = int(use_photo)
-        d.to_hdf(self.dataset_addr, 'main')
+        d.loc[(d['class'] == _class) & (d['image_name'] == image_name), 'annotator'] = annotator
+        d.loc[(d['class'] == _class) & (d['image_name'] == image_name), 'instant'] = instant
+        d.to_hdf(dataset_addr, 'main')
         del d
 
         '''
@@ -120,17 +137,17 @@ class EnqueueAnnotationHandler(RequestHandler):
         #return
 
 
-def main(images_url, dataset_path, max_count=30):
+def main(images_url, dataset_paths, max_count=30):
     print("{} Starting Web Server ...".format(TAG))
+    addrs = [os.path.join(dataset_paths, dataset_name) for dataset_name in os.listdir(dataset_paths)]
 
     update_query_q = Queue()
 
     app = Application([
-        (r"/get_photo", ProvidePhotoHandler,
-         dict(dataset_addr=dataset_path,images_url=images_url,
+        (r"/get_photo", ProvidePhotoHandler, dict(addrs=addrs,images_url=images_url,
                                                   max_count=max_count)),
         #(r"/save", EnqueueAnnotationHandler, dict(queue=update_query_q))
-        (r"/save", EnqueueAnnotationHandler, dict(dataset_addr=dataset_path))
+        (r"/save", EnqueueAnnotationHandler)
     ])
 
     '''
